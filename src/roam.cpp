@@ -34,6 +34,64 @@ void sleepok(int t, ros::NodeHandle &nh) {
         sleep(t);
 }
 
+void shake(int times) {
+	actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("move_base",true);
+    //wait to make sure the service is there 
+    //-- this has to be here even if you're use the service is already running
+    ac.waitForServer(); 
+	move_base_msgs::MoveBaseGoal goal;
+
+	for (int i = 0; i < times * 2; i++) {
+		goal.target_pose.header.stamp = ros::Time::now();
+		goal.target_pose.header.frame_id = "/base_link";
+		
+		int dir = ((i % 2) * 2) - 1;
+		
+		//set relative x, y, and angle
+		goal.target_pose.pose.position.x = 0.0;
+		goal.target_pose.pose.position.y = 0.0;
+		goal.target_pose.pose.position.z = 0.0;
+		goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(40 * dir);
+
+		//send the goal
+		ac.sendGoal(goal);
+		
+		//block until the action is completed
+		ac.waitForResult();
+	}
+}
+
+void spin() {
+	move_base_msgs::MoveBaseGoal goal;
+		actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("move_base",true);
+    //wait to make sure the service is there 
+    //-- this has to be here even if you're use the service is already running
+    ac.waitForServer(); 
+
+	for (int i = 0; i < 3; i++) {
+		goal.target_pose.header.stamp = ros::Time::now();
+		goal.target_pose.header.frame_id = "/base_link";
+		
+		//set relative x, y, and angle
+		goal.target_pose.pose.position.x = 0.0;
+		goal.target_pose.pose.position.y = 0.0;
+		goal.target_pose.pose.position.z = 0.0;
+		goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(120 * i);
+
+		//send the goal
+		ac.sendGoal(goal);
+		
+		//block until the action is completed
+		ac.waitForResult();
+	}	
+}
+
+void dance() {
+    shake(4);
+    spin();
+    shake(4);
+}
+
 int move_turtle_bot (double x, double y, double z, double w) {
 	std::cout << "In move_turtle_bot" << std::endl;
     // changed to handle orientation z and w  
@@ -48,7 +106,8 @@ int move_turtle_bot (double x, double y, double z, double w) {
     
     //set the header
     goal.target_pose.header.stamp = ros::Time::now();
-    goal.target_pose.header.frame_id = "/map";
+    goal.target_pose.header.frame_id = "/map"; 
+    //     goal.target_pose.header.frame_id = "/base_link";
       
     //set relative x, y, and angle
     goal.target_pose.pose.position.x = x;
@@ -87,25 +146,26 @@ void sayRandomPhrase(ros::Publisher sound_pub, int index, const std::vector<Room
 
 void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *roomInfo) {
     std::ifstream roomFile; 
-    std::string pp = "rooms/roomList.csv";
+    std::string pp = "/home/turtlebot/catkin_ws/src/carol_exec/src/rooms/roomList.csv";
     //char *roomPath = pp.c_str();
     roomFile.open(pp.c_str());
-
+	int index = 0;
     if (roomFile.is_open()) {
         std::string line;
         char *ptr;
         getline(roomFile, line);    // getting rid of header
-
         while (getline(roomFile, line)) {
             int i = 5;
             RoomInfo *new_r = new RoomInfo;
             Coordinate *new_c = new Coordinate;
             const char *cstr = line.c_str();
             ptr = std::strtok ((char *)cstr, ",\n");
+			index ++;
 
             while (ptr != NULL) {
                 switch (i) {
                     case 5 :
+						std::cout << "index is : " << index << " room is " << atoi(ptr) << std::endl;
                         new_r->roomNum = atoi(ptr);
                         break;
                     case 4 :
@@ -125,11 +185,12 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
                         break;
                 }
 
-                roomInfo->push_back(new_r);
-                coordinates->push_back(new_c);
+
                 i--;
                 ptr = strtok (NULL, ",\n");
             }
+			roomInfo->push_back(new_r);
+			coordinates->push_back(new_c);
         }
     } else {
         std::cout << "Unable to open file!!!!!\n";
@@ -188,12 +249,21 @@ int main(int argc, char **argv)
     
     int c = 0;  
     
+    // testing
+    for (uint32_t k = 0; k < 19; k++) {
+		RoomInfo* info = roomInfo.at(k);
+		std::cout << k << " : " << info->roomNum << std::endl;
+
+	}
+    
+    
     while (ros::ok()) {
 		c = rand() % 19;
-		std::cout << "looping ..." << std::endl;
+		std::cout << "looping ... " << c <<  std::endl;
         //move to next location
         Coordinate* coord = coordinates.at(c);
-        move_turtle_bot(coord->x, coord->y, coord->z, coord->w);
+        dance();
+        //~ move_turtle_bot(coord->x, coord->y, coord->z, coord->w);
         ROS_INFO("Moved to new location: " );
         std::cout << coord->x << std::endl;
         std::cout << coord->y << std::endl;
