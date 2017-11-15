@@ -163,8 +163,8 @@ void sayRandomPhrase(ros::Publisher sound_pub, int index, const std::vector<Room
     //int m = rand() % num_messages;
     std::string cur_name = roomInfo.at(index)->name;
     
-    std::string messages = std::string("Hello, ").append(cur_name.append(", open the door."));
-    
+    //std::string messages = std::string("Hello, ").append(cur_name.append(", open the door."));
+    std::string messages = "/home/turtlebot/catkin_ws/src/CARoL/src/Tuftonia's Day.mp3"
     S.arg = messages;
     
     sound_pub.publish(S);
