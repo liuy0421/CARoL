@@ -112,10 +112,9 @@ void loop() {
 }
 
 void dance() {
-	loop();
-    //shake(4);
-    //spin();
-    //shake(4);
+    shake(4);
+    spin();
+    shake(4);
 }
 
 int move_turtle_bot (double x, double y, double z, double w) {
