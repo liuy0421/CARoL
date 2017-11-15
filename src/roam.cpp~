@@ -16,6 +16,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <unistd.h>
 
 #define PI 3.14159265359
 
@@ -98,8 +99,8 @@ void loop() {
 		goal.target_pose.header.frame_id = "/base_link";
 		
 		//set relative x, y, and angle
-		goal.target_pose.pose.position.x = 1.0;
-		goal.target_pose.pose.position.y = 1.0;
+		goal.target_pose.pose.position.x = 0.1;
+		goal.target_pose.pose.position.y = 0.1;
 		goal.target_pose.pose.position.z = 0.0;
 		goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(9 * i);
 
@@ -112,9 +113,10 @@ void loop() {
 }
 
 void dance() {
-    shake(4);
-    spin();
-    shake(4);
+	loop();
+    //shake(4);
+    //spin();
+    //shake(4);
 }
 
 int move_turtle_bot (double x, double y, double z, double w) {
@@ -154,7 +156,7 @@ int move_turtle_bot (double x, double y, double z, double w) {
 void sayRandomPhrase(ros::Publisher sound_pub, int index, const std::vector<RoomInfo *> &roomInfo){
     sound_play::SoundRequest S;
     
-    S.sound = -3;
+    S.sound = -2;
     S.command = 1;
     
     //int num_messages = 3;
@@ -162,11 +164,16 @@ void sayRandomPhrase(ros::Publisher sound_pub, int index, const std::vector<Room
     //int m = rand() % num_messages;
     std::string cur_name = roomInfo.at(index)->name;
     
-    std::string messages = std::string("Hello, ").append(cur_name.append(", open the door."));
-    
+    //std::string messages = std::string("Hello, ").append(cur_name.append(", open the door."));
+    std::string messages = "/home/turtlebot/catkin_ws/src/CARoL/src/Tuftonia's Day.mp3";
     S.arg = messages;
     
     sound_pub.publish(S);
+	std::cout << "sleeping" << std::endl;
+	usleep(1000000);
+	std::cout << "waking" << std::endl;
+	S.command = 0;
+	sound_pub.publish(S);
 }
 
 void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *roomInfo) {
