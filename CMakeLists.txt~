@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(tbot2_halloween_demo)
+project(tbot2_roam)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -136,9 +136,9 @@ include_directories(
 #add_executable(move_base_client src/move_base_client.cpp)
 #add_executable(move_base_client_map src/move_base_client_map.cpp)
 
-add_executable(halloween_demo src/halloween_demo.cpp)
-add_dependencies(halloween_demo  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(halloween_demo ${catkin_LIBRARIES})
+add_executable(roam src/roam.cpp)
+add_dependencies(roam  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(roam ${catkin_LIBRARIES})
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(move_base_client_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

@@ -12,6 +12,7 @@
 
 #include <sound_play/sound_play.h>
 #include <sound_play/SoundRequest.h>
+#include <sensor_msgs/LaserScan.h>
 
 #include <vector>
 #include <iostream>
@@ -118,6 +119,14 @@ void dance() {
     //spin();
     //shake(4);
 }
+
+void laserCallBack(const sensor_msgs::LaserScan::ConstPtr& scan_in);
+const int DETECTION_THRESHOLD = 25;
+const float WALL_DIST_THRESHOLD = 0.5;
+
+// global variable that keeps scan info
+sensor_msgs::LaserScan last_scan_in;
+uint64_t scan_index = 0;
 
 int move_turtle_bot (double x, double y, double z, double w) {
 	std::cout << "In move_turtle_bot" << std::endl;
@@ -231,6 +240,35 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
     roomFile.close();
 }
 
+void laserCallback(const sensor_msgs::LaserScan::ConstPtr &scan_in) {
+	last_scan_in = *scan_in;
+	scan_index ++;
+}
+
+bool isOpening() {
+	float firstReading;
+	float secondReading;
+
+	// count the readings
+	for (int i = 0; i < last_scan_in.ranges.size(); i++) {
+		firstReading += last_scan_in.ranges[i];
+	}
+
+	uint64_t first_index = scan_index;
+	// busy wait for a new reading
+	while (scan_index == first_index) {
+		// do nothing
+	}
+
+	// count the new reading
+	for (int i = 0; i < last_scan_in.ranges.size(); i++) {
+		secondReading += last_scan_in.ranges[i];
+	}
+
+	// compare the two
+	return secondReading > firstReading;
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "move_base_client");
@@ -239,9 +277,11 @@ int main(int argc, char **argv)
     std::vector<RoomInfo *> roomInfo;
 
     initRooms(&coordinates, &roomInfo);
+	
     //publisher for sound
     ros::Publisher sound_pub = n.advertise<sound_play::SoundRequest>("/robotsound", 1);
-    
+	ros::Subscriber laser_sub = n.subscribe("/scan", 1000, laserCallback);
+
     
     //sleep for a bit to make sure the pub will work
     sleepok(2,n);
@@ -305,13 +345,19 @@ int main(int argc, char **argv)
         //say something I'm giving up on you
         //sc.say("Hello!");
         ROS_INFO("speaking then sleeping..");
+
+        sayRandomPhrase(sound_pub, c, roomInfo);
         
-        /* What does this part do? */
-        //for (int p = 0; p < 3; p ++){
-             sayRandomPhrase(sound_pub, c, roomInfo);
-            // sleepok(4,n);
-        //     move_turtle_bot(locations[c][0],locations[c][1],locations[c][2], locations[c][3]);
-        //}
+  		//bool openDoor = isOpen();
+		for (int i = 0; i < 100; i++) {
+			if (isOpening()) {
+				std::cout << "Door opened!" << std::endl;
+				break;
+			} else {
+				// maybe sleep here
+				std::cout << "Door isn't opening" << std::endl;
+			}
+		}
         sleepok(10,n);
         
         //increment location 

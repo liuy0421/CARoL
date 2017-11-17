@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   message_generation
   sound_play
+  sensor_msgs
 )
 
 ## System dependencies are found with CMake's conventions
