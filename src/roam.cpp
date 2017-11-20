@@ -20,7 +20,7 @@
 #include <unistd.h>
 
 #define PI 3.14159265359
-
+bool scan_heard = false;
 
 struct RoomInfo {
     int roomNum;
@@ -243,30 +243,63 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr &scan_in) {
 	last_scan_in = *scan_in;
 	scan_index ++;
+	scan_heard = true;
 }
 
-bool isOpening() {
-	float firstReading;
-	float secondReading;
+void waitForScan(){		
+	double elapsed_time = 0;
+	int ratehz = 10;
+	ros::Rate r(ratehz);
 
-	// count the readings
-	for (int i = 0; i < last_scan_in.ranges.size(); i++) {
-		firstReading += last_scan_in.ranges[i];
+	scan_heard = false;
+
+	while (ros::ok()){
+		ros::spinOnce();
+		r.sleep();
+		elapsed_time += 1.0/(double)ratehz;
+		if (scan_heard) 
+			break;
 	}
 
-	uint64_t first_index = scan_index;
-	// busy wait for a new reading
-	while (scan_index == first_index) {
-		// do nothing
+}
+
+float distanceThreshold = 1.0;
+int nanThreshold = 10;
+
+bool isOpen() {
+
+	int nanCount = 0;
+	int longCount = 0;
+	
+	waitForScan();
+	// count the number of NaN
+	// count the number of long rays
+
+	// iterate over middle range and count number over thresh
+	// also keep track of NaN
+	// if NaN, not over threshold
+	/*
+	for (int i = scan_in.size() / 4; i < (3 * scan_in.size()) / 4; i++) {
+		if (isnan(scan_in[i])) {
+			nanCount++;
+		} else if (scan_in[i] >= distanceThreshold) {
+			longCount++;
+		}
 	}
 
-	// count the new reading
-	for (int i = 0; i < last_scan_in.ranges.size(); i++) {
-		secondReading += last_scan_in.ranges[i];
+	if (nanCount >= scan_in.size() / 4.0) {
+		return true;
+	} else {
+		return (longCount >= scan_in.size() / 4.0);
 	}
+	*/
 
-	// compare the two
-	return secondReading > firstReading;
+	// TODO:
+	// count the number of real readings
+	// if most of the real readings are over 1, accept, else reject
+	std::cout << last_scan_in.ranges << std::endl;
+	return true;
+	
 }
 
 int main(int argc, char **argv)
@@ -280,7 +313,7 @@ int main(int argc, char **argv)
 	
     //publisher for sound
     ros::Publisher sound_pub = n.advertise<sound_play::SoundRequest>("/robotsound", 1);
-	ros::Subscriber laser_sub = n.subscribe("/scan", 1000, laserCallback);
+	ros::Subscriber laser_sub = n.subscribe("/scan", 1, laserCallback);
 
     
     //sleep for a bit to make sure the pub will work
@@ -334,7 +367,7 @@ int main(int argc, char **argv)
 		std::cout << "looping ... " << c <<  std::endl;
         //move to next location
         Coordinate* coord = coordinates.at(c);
-        dance();
+        //dance();
         //~ move_turtle_bot(coord->x, coord->y, coord->z, coord->w);
         ROS_INFO("Moved to new location: " );
         std::cout << coord->x << std::endl;
@@ -347,9 +380,10 @@ int main(int argc, char **argv)
         ROS_INFO("speaking then sleeping..");
 
         sayRandomPhrase(sound_pub, c, roomInfo);
-        
+        /*
   		//bool openDoor = isOpen();
 		for (int i = 0; i < 100; i++) {
+			
 			if (isOpening()) {
 				std::cout << "Door opened!" << std::endl;
 				break;
@@ -359,7 +393,7 @@ int main(int argc, char **argv)
 			}
 		}
         sleepok(10,n);
-        
+        */
         //increment location 
 
         //c = (c + 1) % num_locations;
@@ -368,6 +402,8 @@ int main(int argc, char **argv)
         // if (c >= num_locations){
         //  c = 0;
         // }
+	isOpen();
+	return 42;
     }
      
     return 0;
