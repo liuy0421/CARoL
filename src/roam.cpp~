@@ -24,14 +24,20 @@ bool scan_heard = false;
 float distanceThreshold = 1.0;
 int nanThreshold = 10;
 
-struct RoomInfo {
-    int roomNum;
-    std::string name;
-};
-
 struct Coordinate {
     float x, y, z, w;
 };
+
+struct RoomInfo {
+    int roomNum;
+    std::string name;
+    float priority;
+    float initialPriority;
+    bool visitSuccess = false;
+    Coordinate* coords;
+};
+
+
 
 void sleepok(int t, ros::NodeHandle &nh) {
     if (nh.ok())
@@ -187,15 +193,8 @@ bool isOpen() {
 	int longCount = 0;
 	
 	waitForScan();
-	// count the number of NaN
-	// count the number of long rays
-
-	// iterate over middle range and count number over thresh
-	// also keep track of NaN
-	// if NaN, not over threshold
 	
 	for (int i = last_scan_in.ranges.size() / 4; i < (3 * last_scan_in.ranges.size()) / 4; i++) {
-		std::cout << last_scan_in.ranges[i] << std::endl;
 		if (!isnan(last_scan_in.ranges[i])) {
 			realCount++;
 			if (last_scan_in.ranges[i] >= distanceThreshold) {
@@ -204,64 +203,60 @@ bool isOpen() {
 		}
 	}
 
-	std::cout << "the real count is " << realCount << std::endl;
-	std::cout << "the long count is " << longCount << std::endl;
-
-	if (longCount >= realCount/ 2.0) {
-		std::cout << "DOOR IS OPEN" << std::endl;
-	} else {
-		std::cout << "door is closed :'(" << std::endl;
-	}
 
 	return (longCount >= realCount/ 2.0);
 
 }
 
-
-
-bool sayRandomPhraseImpl(ros::Publisher sound_pub, int index, const std::vector<RoomInfo *> &roomInfo){
+bool askToOpenDoor(ros::Publisher sound_pub, RoomInfo * roomInfo) {
     sound_play::SoundRequest S;
     
     S.sound = -3;
     S.command = 1;
     std::string messages;
     
-    //int num_messages = 3;
-    
-    //int m = rand() % num_messages;
-    std::string cur_name = roomInfo.at(index)->name;
-    
-    if (isOpen()) {
-	messages = std::string("Hello, ").append(cur_name.append(", I hope you had a great Thanksgiving."));
-
-    } else {
-    	messages = std::string("Hello, ").append(cur_name.append(", please open the door."));
-	S.arg = messages;
-	sound_pub.publish(S);
-	usleep(10000000);
-	return false;
-    }
-    //std::string messages = "/home/turtlebot/catkin_ws/src/CARoL/src/Tuftonia's Day.mp3";
+    std::string cur_name = roomInfo->name;
+    messages = std::string("Hello, ").append(cur_name.append(", please open the door."));
     S.arg = messages;
-    
     sound_pub.publish(S);
-	usleep(10000000);
-	return true;
-
-	/*std::cout << "sleeping" << std::endl;
-	usleep(1000000);
-	std::cout << "waking" << std::endl;
-	S.command = 0;
-	sound_pub.publish(S);*/
+    return true;
 }
 
-void sayRandomPhrase(ros::Publisher sound_pub, int index, const std::vector<RoomInfo *> &roomInfo){
-	for (int i = 0; i < 3; i++) {
-		if (sayRandomPhraseImpl(sound_pub, index, roomInfo)) {
-			break;
+bool carol(ros::Publisher sound_pub, RoomInfo * roomInfo) {
+    sound_play::SoundRequest S;
+    S.sound = -2;
+    S.command = 1;
+    std::string messages;
+    
+    std::string cur_name = roomInfo->name;
+    //messages = std::string("Hello, ").append(cur_name.append(", I hope you had a great Thanksgiving."));
+    messages = "/home/turtlebot/catkin_ws/src/CARoL/src/Tuftonia's Day.mp3";
+    S.arg = messages;
+    sound_pub.publish(S);
+    for (int i = 0; i < 4; i++) {
+	spin();
+    }
+    S.command = 0;
+    sound_pub.publish(S);
+    return true;
+}
+
+bool doDoor(ros::Publisher sound_pub, RoomInfo * roomInfo) {
+	int countdown = 30 * 10;
+	for (int i = 0; i < countdown; i++) {
+		if (isOpen()) {
+			roomInfo->visitSuccess=true;
+			carol(sound_pub, roomInfo);
+			roomInfo->priority = 0;
+			return true;
+		} else if (i%100 == 0) {
+			askToOpenDoor(sound_pub, roomInfo);			
 		}
+		//usleep(1000);
 	}
-}	
+	roomInfo->priority = roomInfo->priority / 2.0;
+	return false;
+}
 
 
 void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *roomInfo) {
@@ -275,7 +270,7 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
         char *ptr;
         getline(roomFile, line);    // getting rid of header
         while (getline(roomFile, line)) {
-            int i = 5;
+            int i = 6;
             RoomInfo *new_r = new RoomInfo;
             Coordinate *new_c = new Coordinate;
             const char *cstr = line.c_str();
@@ -284,31 +279,35 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
 
             while (ptr != NULL) {
                 switch (i) {
-                    case 5 :
-						std::cout << "index is : " << index << " room is " << atoi(ptr) << std::endl;
+                    case 6 :
                         new_r->roomNum = atoi(ptr);
                         break;
-                    case 4 :
+                    case 5 :
                         new_r->name = std::string(ptr);
                         break;
-                    case 3 :
+                    case 4 :
                         new_c->x = atof(ptr);
                         break;
-                    case 2 :
+                    case 3 :
                         new_c->y = atof(ptr);
                         break;
-                    case 1 :
+                    case 2 :
                         new_c->z = atof(ptr);
                         break;
-                    case 0 :
+                    case 1 :
                         new_c->w = atof(ptr);
                         break;
+		    case 0 :
+			new_r->priority = atof(ptr);
+			new_r->initialPriority = atof(ptr);
+			break;
                 }
 
 
                 i--;
                 ptr = strtok (NULL, ",\n");
             }
+			new_r->coords = new_c;
 			roomInfo->push_back(new_r);
 			coordinates->push_back(new_c);
         }
@@ -325,6 +324,57 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr &scan_in) {
 	scan_heard = true;
 }
 
+
+bool isDone(const std::vector<RoomInfo *> roomInfo) {
+		
+	for (uint32_t k = 0; k < 19; k++) {
+		RoomInfo* info = roomInfo.at(k);
+		if (info->priority >= 5) {
+			return false;
+		}	
+	}
+	return true;
+}
+
+RoomInfo *getNextRoom(const std::vector<RoomInfo *> roomInfo) {
+	RoomInfo* max_room;
+	float max_priority = 0;
+	for (uint32_t k = 0; k < 19; k++) {
+		RoomInfo* info = roomInfo.at(k);
+		if (info->priority > max_priority) {
+			max_priority = info->priority;
+			max_room = info;
+		}	
+	}
+	return max_room;
+}
+
+void writeRoomInfo(const std::vector<RoomInfo*> roomInfo) {
+    	//std::string pp = "/home/turtlebot/catkin_ws/src/CARoL/src/rooms/roomList.csv";
+    	std::ofstream f;
+	f.open("/home/turtlebot/catkin_ws/src/CARoL/src/rooms/roomList.csv", std::ofstream::out);
+	
+	f << "room number,name, x, y, z, w, priority\n";
+	for (uint32_t k = 0; k < 19; k++) {
+		RoomInfo* info = roomInfo.at(k);
+		float new_priority = info->initialPriority * ((info->visitSuccess) ? 2.0 : 0.5);
+		f << info->roomNum;
+		f << ", ";
+		f << info->name;
+		f << ", ";
+		f << info->coords->x;
+		f << ", ";
+		f << info->coords->y;
+		f << ", ";
+		f << info->coords->z;
+		f << ", ";
+		f << info->coords->w;
+		f << ", ";
+		f << info->priority;
+		f << "\n";	
+	}
+	f.close();
+}
 
 int main(int argc, char **argv)
 {
@@ -347,26 +397,6 @@ int main(int argc, char **argv)
     double home_location[4] = {5.65, 13.8, 0.0, 0.0};
     
     int num_locations = 19;
-    // double locations[19][4] = { {2.77, 5.86, -0.82, 0.57},  // 202
-    //                             {7.14, 5.87, -0.82, 0.56},  // 205
-    //                             {10.71, 6.58, 0.79, 0.62},  // 206
-    //                             {12.18, 5.56, -0.8, 0.6},   // 207
-    //                             {13.36, 5.55, -0.62, 0.78}, // 208
-    //                             {17.4, 5.56, -0.84, 0.54},  // 210
-    //                             {19.02, 5.4, -0.8, 0.6},    // 211
-    //                             {23.36, 5.4, -0.54, 0.84},  // 213
-    //                             {24.47, 5.4, -0.64, 0.77},  // 214
-    //                             {26.16, 6.23, 0.06, 1.0},   // 215
-    //                             {25.68, 14.41, 0.64, 0.77}, // 220
-    //                             {24.16, 14.39, 0.59, 0.81}, // 221
-    //                             {19.55, 14.39, 0.84, 0.55}, // 222
-    //                             {17.96, 14.22, 0.61, 0.8},  // 224
-    //                             {-3.15, 14.03, 0.78, 0.62}, // 235a
-    //                             {-4.55, 14.23, 0.78, 0.63}, // 237
-    //                             {-7.63, 15.23, 0.7, 0.72},  // 239
-    //                             {-7.72, 13.71, 1, 0.06},    // 241
-    //                             {2.45, 13.39, -0.8, 0.61},  // 250
-    //                             };
     
     actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("move_base",true);
     // wait to make sure the service is there 
@@ -376,40 +406,22 @@ int main(int argc, char **argv)
   
     double x1,y1,x2,y2,x3,y3,x4,y4 = 0;
     
-    int c = 0;  
-    
-    // testing
-    for (uint32_t k = 0; k < 19; k++) {
-		RoomInfo* info = roomInfo.at(k);
-		std::cout << k << " : " << info->roomNum << std::endl;
+    RoomInfo* nextTarget;
+    carol(sound_pub, roomInfo.at(0));
+    return 0;
+    while (ros::ok() && !isDone(roomInfo)) {
 
-	}
-    
-    
-    while (ros::ok()) {
-		//c = rand() % 19;
-		//c = 9;
-	std::cout << "looping ... " << c <<  std::endl;
+	nextTarget = getNextRoom(roomInfo);
+	
         //move to next location
-        Coordinate* coord = coordinates.at(c);
-        //dance();
+        Coordinate* coord = nextTarget->coords;
         move_turtle_bot(coord->x, coord->y, coord->z, coord->w);
         ROS_INFO("Moved to new location: " );
-        std::cout << coord->x << std::endl;
-        std::cout << coord->y << std::endl;
-        std::cout << coord->z << std::endl;
-        std::cout << coord->w << std::endl;
         
-        //say something I'm giving up on you
-        //sc.say("Hello!");
         ROS_INFO("speaking then sleeping..");
-
-        sayRandomPhrase(sound_pub, c, roomInfo);
-	usleep(100000);
-
-        c = (c + 1) % num_locations;
-		
+        doDoor(sound_pub, nextTarget);
     }
+    writeRoomInfo(roomInfo);
      
     return 0;
 
