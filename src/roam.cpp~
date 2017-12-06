@@ -18,11 +18,23 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+#include <string> 
+#include <stdio.h>
+#include <stdlib.h>
+#include <sstream>
 
 #define PI 3.14159265359
 bool scan_heard = false;
 float distanceThreshold = 1.0;
 int nanThreshold = 10;
+void laserCallBack(const sensor_msgs::LaserScan::ConstPtr& scan_in);
+const int DETECTION_THRESHOLD = 25;
+const float WALL_DIST_THRESHOLD = 0.5;
+
+// global variable that keeps scan info
+sensor_msgs::LaserScan last_scan_in;
+uint64_t scan_index = 0;
+
 
 struct Coordinate {
     float x, y, z, w;
@@ -42,33 +54,6 @@ struct RoomInfo {
 void sleepok(int t, ros::NodeHandle &nh) {
     if (nh.ok())
         sleep(t);
-}
-
-void shake(int times) {
-	actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("move_base",true);
-    //wait to make sure the service is there 
-    //-- this has to be here even if you're use the service is already running
-    ac.waitForServer(); 
-	move_base_msgs::MoveBaseGoal goal;
-
-	for (int i = 0; i < times * 2; i++) {
-		goal.target_pose.header.stamp = ros::Time::now();
-		goal.target_pose.header.frame_id = "/base_link";
-		
-		int dir = ((i % 2) * 2) - 1;
-		
-		//set relative x, y, and angle
-		goal.target_pose.pose.position.x = 0.0;
-		goal.target_pose.pose.position.y = 0.0;
-		goal.target_pose.pose.position.z = 0.0;
-		goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(40 * dir);
-
-		//send the goal
-		ac.sendGoal(goal);
-		
-		//block until the action is completed
-		ac.waitForResult();
-	}
 }
 
 void spin() {
@@ -96,46 +81,6 @@ void spin() {
 	}	
 }
 
-void loop() {
-	move_base_msgs::MoveBaseGoal goal;
-	actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("move_base",true);
-    //wait to make sure the service is there 
-    //-- this has to be here even if you're use the service is already running
-    ac.waitForServer(); 
-
-	for (int i = 0; i < 4; i++) {
-		goal.target_pose.header.stamp = ros::Time::now();
-		goal.target_pose.header.frame_id = "/base_link";
-		
-		//set relative x, y, and angle
-		goal.target_pose.pose.position.x = 0.1;
-		goal.target_pose.pose.position.y = 0.1;
-		goal.target_pose.pose.position.z = 0.0;
-		goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(90 * i);
-
-		//send the goal
-		ac.sendGoal(goal);
-		
-		//block until the action is completed
-		ac.waitForResult();
-	}	
-}
-
-void dance() {
-	loop();
-    //shake(4);
-    //spin();
-    //shake(4);
-}
-
-void laserCallBack(const sensor_msgs::LaserScan::ConstPtr& scan_in);
-const int DETECTION_THRESHOLD = 25;
-const float WALL_DIST_THRESHOLD = 0.5;
-
-// global variable that keeps scan info
-sensor_msgs::LaserScan last_scan_in;
-uint64_t scan_index = 0;
-
 int move_turtle_bot (double x, double y, double z, double w) {
 	std::cout << "In move_turtle_bot" << std::endl;
     // changed to handle orientation z and w  
@@ -151,7 +96,6 @@ int move_turtle_bot (double x, double y, double z, double w) {
     //set the header
     goal.target_pose.header.stamp = ros::Time::now();
     goal.target_pose.header.frame_id = "/map"; 
-    //     goal.target_pose.header.frame_id = "/base_link";
       
     //set relative x, y, and angle
     goal.target_pose.pose.position.x = x;
@@ -164,10 +108,8 @@ int move_turtle_bot (double x, double y, double z, double w) {
     
     //block until the action is completed
     ac.waitForResult();
-    //~ std::cout<<"\n \n waiting for " << sleep_time<<" seconds \n \n";
-    //~ sleep(sleep_time);
-  
-  return 0;
+
+    return 0;
 }
 
 void waitForScan(){		
@@ -229,12 +171,16 @@ bool carol(ros::Publisher sound_pub, RoomInfo * roomInfo) {
     std::string messages;
     
     std::string cur_name = roomInfo->name;
-    //messages = std::string("Hello, ").append(cur_name.append(", I hope you had a great Thanksgiving."));
-    messages = "/home/turtlebot/catkin_ws/src/CARoL/src/Tuftonia's Day.mp3";
+	//char song_choice [1];
+	//itoa(rand() % 3 + 1, song_choice, 10);
+	stringstream stream;
+    stream << rand() % 3 + 1;
+	//std::string song_choice = std::to_string(rand() % 3 + 1);
+    messages = std::string("/home/turtlebot/catkin_ws/src/CARoL/src/").append(stream.str().append(".mp3"));
     S.arg = messages;
     sound_pub.publish(S);
     for (int i = 0; i < 4; i++) {
-	spin();
+		spin();
     }
     S.command = 0;
     sound_pub.publish(S);
@@ -249,10 +195,9 @@ bool doDoor(ros::Publisher sound_pub, RoomInfo * roomInfo) {
 			carol(sound_pub, roomInfo);
 			roomInfo->priority = 0;
 			return true;
-		} else if (i%100 == 0) {
+		} else if (i % 100 == 0) {
 			askToOpenDoor(sound_pub, roomInfo);			
 		}
-		//usleep(1000);
 	}
 	roomInfo->priority = roomInfo->priority / 2.0;
 	return false;
@@ -262,7 +207,6 @@ bool doDoor(ros::Publisher sound_pub, RoomInfo * roomInfo) {
 void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *roomInfo) {
     std::ifstream roomFile; 
     std::string pp = "/home/turtlebot/catkin_ws/src/CARoL/src/rooms/roomList.csv";
-    //char *roomPath = pp.c_str();
     roomFile.open(pp.c_str());
 	int index = 0;
     if (roomFile.is_open()) {
@@ -297,13 +241,11 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
                     case 1 :
                         new_c->w = atof(ptr);
                         break;
-		    case 0 :
-			new_r->priority = atof(ptr);
-			new_r->initialPriority = atof(ptr);
-			break;
+		    		case 0 :
+						new_r->priority = atof(ptr);
+						new_r->initialPriority = atof(ptr);
+						break;
                 }
-
-
                 i--;
                 ptr = strtok (NULL, ",\n");
             }
@@ -312,9 +254,8 @@ void initRooms(std::vector<Coordinate *> *coordinates, std::vector<RoomInfo *> *
 			coordinates->push_back(new_c);
         }
     } else {
-        std::cout << "Unable to open file!!!!!\n";
+        std::cout << "Unable to open file :(\n";
     }
-
     roomFile.close();
 }
 
@@ -407,8 +348,6 @@ int main(int argc, char **argv)
     double x1,y1,x2,y2,x3,y3,x4,y4 = 0;
     
     RoomInfo* nextTarget;
-    carol(sound_pub, roomInfo.at(0));
-    return 0;
     while (ros::ok() && !isDone(roomInfo)) {
 
 	nextTarget = getNextRoom(roomInfo);
