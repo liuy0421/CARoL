@@ -1,7 +1,7 @@
 ## Final Project: CARoL, Coordinated, Automated Robot of Levity
 COMP150-02 Developmental Robotics;
 Fall 2017;
-Team Members: Azmina Karukappadath, Sam Weiss, and Yuelin Liu
+Team Members: Azmina Karukappadath (https://github.com/akaruk01), Sam Weiss (https://github.com/SamuelWeiss), and Yuelin Liu (https://github.com/liuy0421)
 
 ## Installation
 CARoL requires the installation of:
