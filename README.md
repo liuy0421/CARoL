@@ -56,3 +56,6 @@ $ rosrun tbot2_roam tbot2.roam
 ```
 
 And your favorite Turtlebot should be ready to bring joy to the world!
+
+
+Special thanks to Jivko Sinapov (https://github.com/jsinapov) for providing guidance over the course of this project.
